@@ -421,6 +421,10 @@ age_cuts
 
 Un cop tenim els talls a partir de 7 quartils, els afegim al conjunt de dades, conjuntament amb les seves etiquetes corresponents.
 
+```{r, echo=FALSE}
+library(dplyr)
+```
+
 ```{r}
 # AgeRange
 titanic$AgeRange <- 
@@ -434,6 +438,10 @@ ages.df <- data.frame(
 
 titanic <- merge(titanic,ages.df,by="AgeRange")
 titanic$AgeRangeLabels <- as.factor(titanic$AgeRangeLabels)
+
+# Reordenem
+titanic <- titanic[order(titanic$PassengerId),]
+row.names(titanic) <- titanic$PassengerId
 ```
 
 Un cop les tenim introduides de nou al conjunt de dades, examinem-ne la distribució contra la supervivència dels passatgers, analitzant-ho també per range classe.
@@ -475,11 +483,11 @@ columns = c("PassengerId", "Pclass", "Sex", "AgeRange", "AgeRangeLabels",
 
 titanic_train_clean <- titanic[titanic$ds=="train", columns]
 write.csv(titanic_train_clean, file = "../data/titanic_train_clean.csv", 
-          row.names=TRUE)
+          row.names=FALSE)
 
 titanic_test_clean <- titanic[titanic$ds=="test", columns[1:8]]
 write.csv(titanic_test_clean, file = "../data/titanic_test_clean.csv", 
-          row.names=TRUE)
+          row.names=FALSE)
 ```
 
 ## Predicció de la supervivència amb *Random Forest*
@@ -547,6 +555,7 @@ titanic_prediction <- predict(rf, titanic_test_clean)
 
 titanic_submission <- data.frame(PassengerId=names(titanic_prediction), 
                                  Survived=titanic_prediction)
+
 write.csv(titanic_submission, file="../data/titanic_submission.csv", 
           row.names=FALSE)
 ```
