@@ -19,7 +19,6 @@ Aquesta pràctica s'ha realitzat de forma individual per **Estanislau Trepat i L
 * `data/test.csv`: Fitxer amb les dades del conjunt de test original, obtingut directament de [Kaggle](https://www.kaggle.com/c/titanic/data).
 * `data/titanic_train_clean.csv`: Fitxer amb les dades del conjunt d'entrenament netes.
 * `data/titanic_test_clean.csv`: Fitxer amb les dades del conjunt de test netes.
-* `data/titanic_test_clean.csv`: Fitxer amb les dades del conjunt de test netes.
 * `doc/etrepat-PRAC2.pdf`: Document de la pràctica amb les respotes requerides per aquesta PRAC.
 * `src/etrepat-PRAC2.Rmd`: Fitxer *R Markdown* font del document de la pràctica.
 
