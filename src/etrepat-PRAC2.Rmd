@@ -1,0 +1,566 @@
+---
+title: | 
+  | M2.951 Tipologia i cicle de vida de les dades
+  | PRAC 2: Neteja i validació de les dades
+author: "Estanislau Trepat"
+date: '`r format(Sys.Date(),"%e de %B, %Y")`'
+output: 
+  pdf_document:
+    toc: yes
+    number_sections: yes
+    fig_caption: yes
+    includes:  
+      in_header: preamble-latex.tex
+urlcolor: blue      
+bibliography: biblio.bib
+lang: ca
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", comment = NA)
+```
+
+```{r load_libraries, include=FALSE, echo=FALSE}
+library(knitr)
+library(kableExtra)
+
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(caret)
+```
+
+---
+
+# Introducció
+
+L'enfonsament del vaixell *RMS Titanic* és un dels naufragis més infames de la història. El 15 d'Abril de 1912, durant el seu viatge inaugural, el *Titanic* es va enfonsar després de col·lisionar amb un iceberg, resultant en la mort de 1502 persones, entre passatge i tripulació, d'un total de 2224. Aquesta enorme tragèdia conmocionà la comunitat internacional i va conduïr a una millora en la regulació de la seguretat marítima i dels vaixells de passatgers.
+
+Una de les raons per les que aquest naufragi va provocar tal pèrdua de vides fou que no hi havía suficients bots salvavides per als passatgers i la tripulació. Tot i que hi va haver algún element de sort involucrat en la supervivència a l'enfosament, alguns grups de persones tenien més probabilitat de sobreviure que d'altres, com les dones, els nens, i la classe alta.
+
+Aquest document intenta respondre la pregunta "quin tipus de persones és més probable que sobrevisquin", proporcionant un anàlisi dels principals factors que podrien portar a la supervivència d'una persona segons les seves característiques. També s'utilitzaran tècniques de mineria de dades per intentar predir de forma automàtica si una persona hauria sobreviscut a la tragèdia o no.
+
+Es pot consultar més informació sobre la tragèdia de l'enfonsament del *RMS Titanic* en la pàgina de la [Viquipèdia](https://en.wikipedia.org/wiki/RMS_Titanic) o en la pàgina d'on s'ha extret el conjunt de dades que s'ha utilitzat a [Kaggle](https://www.kaggle.com): [Titanic: Machine Learning from Disaster](https://www.kaggle.com/c/titanic).
+
+# Descripció del conjunt de dades.
+
+Tal com s'ha esmentat anteriorment, el conjunt de dades utilitzat en aquesta PRAC és l'utilitzat en la competició de [Kaggle](https://www.kaggle.com), [Titanic: Machine Learning from Disaster](https://www.kaggle.com/c/titanic) i s'ha obtingut directament d'aquesta plataforma.
+
+Aquest conjunt de dades conté diversa informació sobre els passatgers del vaixell *RMS Titanic*. Entre la informació emmagatzemada podem trobar la edat, el gènere, algunes característiques socio-econòmiques dels passatgers com la classe i/o el preu del bitllet i si el passatger va sobreviure o no al naufragi.
+
+El conjunt de dades s'ens presenta separat en dos subconjunts: un d'entrenament i un de test. Això és així perque el primer és el que *Kaggle* ens proporciona per a realitzar l'anàlisi i entrenament del model de mineria de dades amb el que es realitzaran les prediccions sobre el segon subconjunt i així obtindre una mesura de la qualitat del model obtingut. Aquests dos subconjunts es troben en dos arxius en format *CSV*: `train.csv` i `test.csv` que contenen 891 observacions i 12 variables el primer, corresponent al conjunt d'entrenament, i 418 observacions i 11 atributs el segon, corresponent al conjunt de test. El subconjunt de test conté un atribut menys perque no disposa de la variable dependent, o classe, que és si el passatger va sobreviure o no.
+
+En els primers processos de neteja i anàlisi exploratori de les dades, ajuntarem aquests subconjunts de dades i, per tant, considerarem que el nostre *dataset* disposa de 1309 observacions i 12 variables.
+
+Els atributs disponibles en el conjunt de dades, i que proporcionen informació sobre les característiques socio-econòmiques de cada passatger, són els següents:
+
+Atribut | Descripció | Valors
+--------------|------------------------------------------------|------------------------
+`PassengerId` | Identificador únic del passatger. |
+`Survived` | Si el passatger ha sobreviscut al naufragi o no (atribut de predicció). | 0 - No, 1 - Si 
+`Pclass` | Classe a la que pertany el passatger. | 1 - 1a, 2 - 2a, 3 - 3a
+`Name` | Nom del passatger. |
+`Sex` | Sexe del passatger. | *male* o *female*
+`Age` | Edat del passatger. |
+`SibSp` | Nombre de germans/nes o marit/muller del passatger en el vaixell. |
+`Parch` | Nombre de pares i/o fills del passatger en el vaixell. |
+`Ticket` | Identificador del bitllet. |
+`Fare` | Preu o tarifa del bitllet. |
+`Cabin` | Identificador del camarot o cabina assignada al passatger. |
+`Embarked` | Port d'embarcament. | C - Cherbourg, Q - Queenstown, S - Southampton
+
+Tal com s'ha comentat, a partir de les dades disponibles en aquest conjunt de dades, l'objectiu principal de l'anàlisi que es preten realitzar es respondre a la pregunta "quin tipus de persones és més probable que sobrevisquin", a partir d'un anàlisi dels principals factors i caràcteristiques que es troben en les dades i que podrien afectar la supervivència d'una persona.
+
+En l'anàlisi s'utilitzarà un model de mineria de dades per a realitzar la predicció automàtica de si una persona hauria sobreviscut a la tragèdia o no.
+
+# Integració i selecció de les dades d'interès a analitzar.
+
+En primer lloc, realitzarem la lectura de les dades originals proporcionades per [Kaggle](https://www.kaggle.com/c/titanic). Com hem comentat en l'apartat anterior, aquestes es troben dividides en dos conjunts: un d'entrenament i un de test. 
+
+Per a facilitar l'anàlisi exploratori de les dades, així com el seu preprocess en ambdós conjunts, els ajuntarem en un de sol. Inicialment, tindrem la precaució de *"marcar"* les observacions que corresponen a cada fitxer i d'afegir la columna amb la variable dependent, o de predicció, `Survived` amb valors buits en el conjunt de test ja que aquesta no hi és present.
+
+```{r}
+# Llegim les dades dels fitxers originals
+train <- read.csv("../data/train.csv", sep=",", header=TRUE, 
+                  fill=TRUE, na.strings=c("", "NA"))
+
+test <- read.csv("../data/test.csv", sep=",", header=TRUE,
+                 fill=TRUE, na.strings=c("", "NA"))
+
+# En l'atribut/columna `ds` ens referim a quin fitxer/conjunt correspon
+train$ds <- "train"
+test$ds <- "test"
+# Omplim de valors buits l'atribut a predir `Survived` en 
+# el conjunt de test
+test$Survived <- NA
+
+# Ajuntem
+titanic <- rbind(train, test)
+titanic$ds <- as.factor(titanic$ds)
+```
+
+Encara que ajuntem els conjunts de dades, això només ho fem per la practicitat de no tenir que realitzar el preprocés de les dades en els dos conjunts de forma separada. Quan analitzem les variables o atributs presents i els relacionem amb si el passatger ha sobreviscut o no (per exemple: supervivència per classe o sexe), només utilitzarem les dades en el conjunt d'entrenament ja que, com hem comentat abans, la informació de la variable dependent de si un passatger ha sobreviscut o no, només es troba present en aquest conjunt i no en el de test.
+
+Comencem, a continuació, una petita exploració prèvia de les dades que acabem de carregar per a fer-nos una idea de que tenim a les mans.
+
+En primer lloc, mostrem un petit extracte amb les primeres observacions del conjunt de dades.
+
+```{r echo=FALSE, }
+kable(head(titanic[, !names(titanic) %in% c("ds")], n=10), format="latex", booktabs=TRUE) %>%
+  kable_styling(latex_options="scale_down")
+```
+
+Observem ara els atributs disponibles, així com els seus tipus de dades.
+
+```{r echo=FALSE}
+str(titanic, strict.width="wrap")
+```
+
+A primera vista veiem els diferents atributs o variables que havíem descrit anteriorment. Ens adonem, però, que hi ha algunes variables que no tenen el tipus de dades correcte, com per exemple l'atribut `Pclass` que hauria de ser un factor de 3 nivells corresponents a la classe del passatger i, en canvi, ens ha estat reconegut com un valor enter. 
+
+El mateix ens passa amb l'atribut de predicció `Survived` que procedirem a convertir a factor.
+
+```{r comment=NA}
+titanic$Survived <- as.factor(titanic$Survived)
+```
+
+Entrarem en més detall en l'assignació correcta dels tipus de dades per als atributs en els pròxims apartats d'aquesta PRAC.
+
+Inicialment ja podem pensar que, per exemple, l'atribut `PassengerId` no ens serà de gaira utilitat en l'anàlisi ja que simplement es tracta d'un identificador de passatger. La intuició ens diu que atributs com el sexe (`Sex`), l'edat (`Age`) i la classe (`Pclass`) poden ésser d'interés per a inferir les probabilitats de supervivència d'un passatger. Examinant els valors de l'atribut `Ticket` s'ens acut que el podem utilitzar per representar el nombre d'acompanyants d'un passatger. Sembla que pugui ser possible que aquelles persones que viatgessin acompanyades tinguessin més probabilitats de sobreviure.
+
+Vegem, a continuació, un petit resum de la distribució de cada atribut on podem veure una aproximació preliminar de la distribució dels valors dels atributs continus i dels valors d'aquelles identificades com a factors. Recordem, però, que com que encara no hem realitzat cap tipus de procés de neteja i/o ajust en les dades, algunes es presenten incorrectament o amb un format de dades que no correspon. Si més no, ens serveix per obtenir una idea inicial sobre les dades que disposem.
+
+```{r comment=NA}
+summary(titanic)
+```
+
+En aquest resum ja es pot observar alguns atributs que contenen valors buïts com: `Age`, `Cabin` i `Embarked`.
+
+Com que el que volem predir és la classe resposta `Survived`, observem-ne la seva distribució.
+
+```{r, echo=FALSE, fig.width=5, fig.height=3, fig.cap="Passatgers que han mort/sobreviscut"}
+# Proporció de morts/supervivents
+prop.survived = table(titanic[titanic$ds=="train",]$Survived) %>% prop.table() %>% round(digits = 2) %>% unname()
+
+ggplot(data=titanic[titanic$ds=="train",], aes(x = Survived, y = ..count.., fill = Survived)) +
+  geom_bar() +
+  ylab("#") +
+  labs(title = "Supervivència", fill = "'Survived' (0=Mor, 1=Sobreviu)") +
+  theme_bw()
+```
+
+En el conjunt de dades que s'ens suministra per a l'entrenament, moren un `r prop.survived[1]*100`% dels passatgers.
+
+Abans de procedir amb el procés de neteja i preparació de les dades, observem la distribució d'alguns atributs així com algunes relacions entre ells. 
+
+Un dels atributs que ens ha semblat que podria resultar significant és `Age`. Comencem analitzant de forma descriptiva la seva distribució de valors.
+
+```{r, echo=FALSE, fig.cap="Distribució de l'atribut Age", fig.height=3, fig.width=5}
+ggplot(titanic, aes(x=Age)) + 
+    labs(title="Edat del passatge") + 
+    xlab("Atribut: Age") + 
+    geom_histogram(aes(y=..density..), binwidth=1, na.rm=TRUE) +
+    geom_density(alpha=.2, fill="#FFFFFF", na.rm=TRUE) +
+    theme_bw()
+```
+
+La distribució de valors de l'edat del passatge té un rang de valors molt dispar, anant d'un mínim d'aproximadament 2 mesos fins a un màxim de 80 anys. S'observen algunes discrepàncies en la distribució en els extrems d'aquests valors, tal com mostra la gràfica Q-Q que segueix.
+
+```{r, echo=FALSE, fig.height=4, fig.width=5, fig.cap="Gràfic Q-Q Normal"}
+qqnorm(titanic$Age, main="Edat del passatge. Gràfic Q-Q"); qqline(titanic$Age)
+```
+
+Observem-ho, també, en relació als passatgers que sobreviuen, contrastant-ho amb l'atribut `Survived`.
+
+```{r, echo=FALSE, fig.cap="Distribució de Age segons supervivència", fig.height=3, fig.width=5}
+ggplot(data=titanic[titanic$ds=="train",], aes(x=Age, fill=Survived)) +
+      geom_histogram(aes(y=..density..), binwidth=1, na.rm=TRUE) +
+      labs(title="Supervivència segons edat del passatge", fill="'Survived' (0=Mor, 1=Sobreviu)") +
+      xlab("Atribut: Age") + 
+      theme_bw()
+```
+
+Sembla que l'atribut `Age` sí que ens donarà informació rellevant, on els trams baixos d'edat sembla que tindrán més possibilitats de sobreviure. Tot i això, segurament no utilitzarem aquest atribut directament sino que el discretitzarem en grups per tal d'evitar inconsistències en valors individuals del mateix. Això ho realitzarem en el proper apartat d'aquesta PRAC.
+
+Com que hem comentat que el gènere i la classe del passatger també ens semblàva que podrien aportar-nos informació rellevant, vegem com es comporten en relació a la supervivència.
+
+```{r, echo="FALSE", fig.cap="Supervivència segons classe del passatge", fig.height=3, fig.width=5}
+ggplot(titanic[titanic$ds=="train",], aes(x=factor(Pclass),fill=Survived)) +
+  geom_bar() +
+  labs(title="Supervivència segons classe", fill="'Survived' (0=Mor, 1=Sobreviu)") +
+  xlab("Classe del passatger") + 
+  ylab("#") + 
+  theme_bw()
+```
+
+Sembla que els passatgers que viatjaven en primera classe, tenien més possibilitats de sobreviure. Dividim-ho, encara més utilitzant l'atribut `Sex`.
+
+```{r, echo="FALSE", fig.cap="Supervivència segons classe/gènere del passatge", fig.height=3, fig.width=6}
+ggplot(titanic[titanic$ds=="train",], aes(x=factor(Pclass),fill=Survived)) +
+  geom_bar() +
+  facet_wrap(~Sex) +
+  labs(title="Supervivència segons gènere/classe", fill="'Survived' (0=Mor, 1=Sobreviu)") +
+  xlab("Classe del passatger") + 
+  ylab("#") + 
+  theme_bw()
+```
+
+Sembla que tant la classe com el gènere serán bons *predictors* de la possibilitat de supervivència. Com més alta la classe més passatgers van sobreviure i, en general, les dones tenen més taxa de supervivència que els homes. Si recordem el que hem comentat per l'atribut `Age`, sembla que les dades fan honor a la dita *"les dones i els nens primer" (i els rics)*.
+
+Per acabar, mirem la distribució de l'atribut `Fare`, que recordem que representa el preu del bitllet pagat pel passatger, en relació a la supervivència.
+
+```{r, echo="FALSE", fig.cap="Supervivència contra tarifa", fig.height=3, fig.width=5}
+ggplot(data=titanic[titanic$ds=="train",], aes(x=Fare, fill=Survived)) +
+      geom_density(alpha = 0.5) +
+      xlab("Atribut: Fare") +
+      labs(title="Supervivència segons tarifa", fill="'Survived' (0=Mor, 1=Sobreviu)") +
+      theme_bw()
+```
+
+La variable `Fare` té una distribució força asimètrica. La major part de les tarifes pagades pel passatge era de cost baix i algunes de cost alt. Intentem tornar-ho a visualitzar aplicant una transformació logarítmica.
+
+```{r, echo="FALSE", fig.cap="Supervivència contra tarifa", fig.height=3, fig.width=6}
+ggplot(data=titanic[titanic$ds=="train",], aes(x=log(Fare), fill=Survived)) +
+      geom_density(alpha = 0.5, na.rm=TRUE) +
+      xlab("Atribut: log(Fare)") +
+      labs(title="Supervivència segons tarifa", fill="'Survived' (0=Mor, 1=Sobreviu)") +
+      theme_bw()
+```
+
+Sembla que el preu mig dels bitllets de les persones que van sobreviure era superior als de la resta. No sembla, però, que el fet d'haver pagat més per un bitllet garantitzi una probabilitat de supervivència major. Es probable que, com hem vist, els passatgers de primera classe tenien més probabilitats de supervivència, potser perque tenien més facilitats per accedir a un bot salvavides. Entenem que els bitllets de primera classe costen més diners que els de les classes inferiors, d'aquí que el preu mig de la tarifa abonada entre els supervivents sigui superior.
+
+De moment, seleccionarem totes les dades que s'ens proporcionen per a utilitzar-les en els processos de preparació i netejea de les mateixes que implementarem en l'aparatat que segueix. Tal com hem comentat, potser combinarem alguna d'elles en una de nova, en discretitzarem d'altres i, per tant, les acabarem eliminant del nostre conjunt de dades. L'única variable que en aquest punt sembla clar que no aporta informació per a l'anàlisi és la de l'atribut identificador `PassengerId`, pero també necessitem arrosegar-la per a realitzar les prediccions finals en el conjunt de test que ens proporciona *Kaggle*.
+
+# Preparació i neteja de les dades.
+
+A continuació implementarem diversos processos de preparació i neteja de les dades. Convertirem el tipus d'alguns atributs, tractarem valors buïts i extrems segons el cas, construirem atributs nous que, potser, ens seran de més utilitat que els que s'ens donen, etc.
+
+## Eliminació de valors duplicats
+
+El conjunt de dades representa els detalls de cada passatger i, per tant, no hauria de contenir registres o exemples duplicats. Comprovem-ho.
+
+```{r}
+ifelse(length(unique(titanic[,1])) == nrow(titanic), "Sense duplicats.","Hi ha valors duplicats!")
+```
+
+Tal com suposàvem no tenim valors duplicats en els conjunts de dades subministrats.
+
+## Tractament dels erros en els tipus de dades
+
+En l'apartat anterior hem comentat que en la lectura dels conjunts de dades s'havien assignat malament alguns tipus de dades. Per exemple, l'atribut `Pclass` s'ha llegit com un enter quant en realitat sabem que es tracta d'un *factor* de 3 nivells. A continuació corregirem aquestes incongruències.
+
+```{r}
+titanic$Pclass <- as.factor(titanic$Pclass)
+```
+
+## Tractament de valors buïts
+
+De la mateixa forma, anteriorment hem comentat que existeixen alguns atributs en el conjunt de dades que contenen valors buïts, o no emplenats. Analitzem de quines variables es tracten.
+
+```{r}
+# Busquem NA (valors buits) en els atributs except en la columna
+# ds que ens indica el tipus de subconjunt (train, test) i la de
+# predicció Survived
+colSums(is.na(titanic[, !names(titanic) %in% c("ds", "Survived")]))
+```
+
+Sembla que els atributs en els que tenim valors buïts són: `Age`, `Fare`, `Cabin` i `Embarked`. Anirem tractant cada atribut individualment, decidint l'acció a realitzar per cada un ja que no ens sembla prudent realitzar la mateixa acció per tots.
+
+### Cabin
+
+L'atribut amb més valors buits sembla que és `Cabin` amb més d'un 75% del seus valors sense dades. 
+
+En aquest cas ens sembla, però, que no estem tractant amb valors buits propiament dits, sino que simplement la gran majoria dels passatgers no tenien un camarot.
+
+```{r}
+table(titanic[!is.na(titanic$Cabin),]$Pclass) %>% prop.table() * 100 %>% round(digits=2)
+```
+
+Sembla que gairebé el 87% dels passatgers que tenien un camarot corresponien a passatgers de primera classe amb el que ens sembla que la nostra hipòtesi pot ser correcta.
+
+En comptes d'eliminar directament aquest atribut o d'imputar-li valors, l'utilitzarem per a crear un nou atribut discret `HasCabin`.
+
+```{r}
+titanic$HasCabin <- as.factor(!is.na(titanic$Cabin))
+```
+
+Contrastem aquest nou atribut envers l'atribut predictiu i la classe del passatge.
+
+```{r, echo="FALSE", fig.cap="Supervivència segons classe/camarot", fig.height=3, fig.width=6}
+ggplot(titanic[titanic$ds=="train",], aes(x=HasCabin,fill=Survived)) +
+  geom_bar() +
+  facet_wrap(~Pclass) +
+  labs(title="Supervivència segons classe/camarot", fill="'Survived' (0=Mor, 1=Sobreviu)") +
+  xlab("Classe del passatger") + 
+  ylab("#") + 
+  theme_bw()
+```
+
+Tal com esperàvem, pocs passatgers en 2ª i 3ª classes disposàvem de camarot, però aquells que en tenien un van tenir una taxa de supervivència més alta.
+
+A partir d'ara només ens interessarà l'atribut `HasCabin` que acabem de crear i podem eliminar l'atribut `Cabin` original.
+
+```{r}
+titanic$Cabin <- NULL
+```
+
+### Embarked
+
+Aquest atribut discret representa el port d'embarcament i hem detectat que tenim dos valors buits en el conjunt de dades.
+
+Examinem quins registres són:
+
+```{r}
+kable(titanic[is.na(titanic$Embarked),], format="latex", booktabs=TRUE) %>%
+  kable_styling(latex_options="scale_down")
+```
+
+Vegem que es tracta de dos passatgeres de 1ª classe que viatjàven juntes (tenen el mateix número de tíquet). Del fet que viatgèssin juntes podem suposar que totes dues van embarcar al mateix lloc.
+
+```{r}
+table(titanic$Embarked)
+```
+
+Gairebé el 70% dels passatgers van embarcar a Southampton. Per al cas d'aquestes dues passatgeres, les imputarem a la classe majoritària dins l'atribut: `S`.
+
+```{r}
+titanic$Embarked[c(62, 830)] <- "S"
+titanic$Embarked <- as.factor(titanic$Embarked)
+```
+
+### Fare
+
+En l'atribut `Fare` només tenim un sol valor buit. Mirem quin és.
+
+```{r}
+kable(titanic[is.na(titanic$Fare),], format="latex", booktabs=TRUE) %>%
+  kable_styling(latex_options="scale_down")
+```
+
+Es tracta d'un passatger de 3ª classe, varó i d'uns 60 anys d'edat. Com que només tenim un sol valor buit, en aquest cas, imputarem al valor de `Fare` el valor mitjà dels registres similars. Per exemple la mitjana de preu de tarifa pagada en 3ª classe.
+
+```{r}
+titanic$Fare[1044] <- mean(titanic[titanic$Pclass=="3",]$Fare, na.rm=TRUE)
+```
+
+### Age
+
+```{r, echo=FALSE, include=FALSE}
+library(mice)
+```
+
+Finalment tractarem l'últim atribut que contenia valors buits, `Age`. Aquest atribut també conté molts elements amb valor buit. Aproximadament un 20% dels passatgers no tenen aquest atribut informat.
+
+Com que volem aprofitar aquest atribut i són molts registres, emplearem un mètode d'imputació de valors predictiu per mitjà de la llibreria [mice](https://cran.r-project.org/web/packages/mice/index.html).
+
+
+```{r}
+y <- titanic[,c("Pclass", "Sex", "Fare", "Embarked", "SibSp", "Parch", "Age")]
+y <- data.frame(y)
+
+ages.pred <- mice(y, method = 'rf')
+
+z.ages <- complete(ages.pred)
+```
+
+Comparem ara la distribució de l'atribut `Age` amb les dades originals i les imputades per l'algorisme per veure si es manté.
+
+```{r, echo=FALSE, fig.cap="Distribució comparada d'Age (Original/Imputat)", fig.height=4}
+p1 <- ggplot(titanic, aes(x=Age)) + 
+        geom_histogram(aes(y=..density.., fill=..count..), binwidth=5, na.rm=TRUE) + 
+        labs(x="Atribut: Age (Original)", y="Freq", fill="Survived") + 
+        theme_bw()
+
+p2 <- ggplot(z.ages, aes(x=Age)) + 
+        geom_histogram(aes(y = ..density.., fill=..count..), binwidth = 5) + 
+        labs(x = "Atribut: Age (Imputat)", y="Freq", fill="Survived") + 
+        theme_bw()
+
+grid.arrange(p1, p2, nrow=1, ncol=2)
+```
+
+Sembla que la distribució general de l'atribut s'ha mantingut. Finalment, assignem aquest nou atribut amb els valors imputats al conjunt de dades.
+
+```{r}
+titanic$Age <- z.ages$Age
+```
+
+Finalement ja no tenim valors buits en les dades.
+
+```{r}
+colSums(is.na(titanic[, !names(titanic) %in% c("ds", "Survived")]))
+```
+
+## Generació d'atributs nous
+
+En aquest apartat generarem alguns atributs que ens semblen interessants i que, creiem, ens ajudaran en l'anàlisi.
+
+### Companions
+
+A partir del nombre de tíquets iguals dels passatgers, establirem el nombre d'acompanyants del mateix. Siguin familiars, empleats de servei, etc. Creiem que és probable que un passatger que no viatjaba sol, tenia més possibilitats de sobreviure.
+
+```{r}
+titanic$Companions <- 1;
+	
+for (i in 1:nrow(titanic)) {
+  titanic$Companions[i] <- length(titanic$Ticket[titanic$Ticket == titanic$Ticket[i]]);
+}
+```
+
+### AgeRange
+
+En comptes d'utilitzar l'edat directament en el model. Discretitzarem aquest atribut en rangs iguals per mitjà de la funció `quantile`.
+
+```{r}
+# Creem els "talls"
+age_cuts <- quantile(titanic[titanic$ds=="train", ]$Age, probs = seq(0,1,1/7))
+# El primer tall comença a l'edat 0, encara que sigui inexistent...
+age_cuts[1] <- 0
+age_cuts
+```
+
+Un cop tenim els talls a partir de 7 quartils, els afegim al conjunt de dades, conjuntament amb les seves etiquetes corresponents.
+
+```{r}
+# AgeRange
+titanic$AgeRange <- 
+  factor(cut(titanic$Age, age_cuts, labels = seq(1,7,1), include.lowest = T, right = T))
+titanic$AgeRange <- as.factor(titanic$AgeRange)
+
+# Etiquetes AgeRange
+ages.df <- data.frame(
+  AgeRange=c(1,2,3,4,5,6,7),
+  AgeRangeLabels=c("<16", "16-21", ">21-26", ">26-30", ">30-35", ">35-45", ">45-max(80)"))
+
+titanic <- merge(titanic,ages.df,by="AgeRange")
+titanic$AgeRangeLabels <- as.factor(titanic$AgeRangeLabels)
+```
+
+Un cop les tenim introduides de nou al conjunt de dades, examinem-ne la distribució contra la supervivència dels passatgers, analitzant-ho també per range classe.
+
+```{r, echo=FALSE}
+pl1 <- ggplot(titanic[titanic$ds=="train",], aes(x=factor(AgeRange, labels=ages.df$AgeRangeLabels), fill=Survived)) + 
+  geom_bar() + 
+  labs(title="Supervivència per rang d'edat", fill="'Survived' (0=Mor, 1=Sobreviu)") +
+  xlab("Rang d'edat") + 
+  ylab("#") + 
+  theme_bw()
+
+pl2 <- ggplot(titanic[titanic$ds=="train",], aes(x=factor(AgeRange, labels=ages.df$AgeRangeLabels), fill=Survived)) + 
+  geom_bar() + 
+  facet_wrap(~Pclass) +
+  labs(title="Supervivència per rang d'edat/classe", fill="'Survived' (0=Mor, 1=Sobreviu)") +
+  xlab("Classe/Rang d'edat") + 
+  ylab("#") + 
+  theme_bw()
+
+grid.arrange(pl1, pl2, nrow=2, ncol=1)
+```
+
+### Tractament de valors extrems.
+
+En el conjunt de dades, no hem detectat valors *extrems* o *outliers*. Si que es veritat que hi havia valors que es consideràven apartats de la distribució de valors d'algun atribut, com en el cas d'`Age` en els seus extrems mínim i màxim, però hem considerat no tractar-los com a *outliers* i deixar-los en el conjunt de dades, doncs corresponen a dades dels passatgers.
+
+# Anàlisi de les dades.
+
+## Creació del conjunt de dades net.
+
+Un cop hem aplicat la preparació i neteja de les dades, ara sí que centrarem l'anàlisi només en les variables que ens interessen. En el nostre cas: `Pclass`, `Sex`, `AgeRange`, `AgeRangeLabels`, `HasCabin`, `Companions` i `Embarked`.
+
+Crearem, a continuació un conjunt de dades *net* amb aquests atributs.
+
+```{r}
+columns = c("PassengerId", "Pclass", "Sex", "AgeRange", "AgeRangeLabels",
+            "HasCabin", "Companions", "Embarked", "Survived")
+
+titanic_train_clean <- titanic[titanic$ds=="train", columns]
+write.csv(titanic_train_clean, file = "../data/titanic_train_clean.csv", 
+          row.names=TRUE)
+
+titanic_test_clean <- titanic[titanic$ds=="test", columns[1:8]]
+write.csv(titanic_test_clean, file = "../data/titanic_test_clean.csv", 
+          row.names=TRUE)
+```
+
+## Predicció de la supervivència amb *Random Forest*
+
+Tot seguit entrenarem un model *Random Forest* per a obtenir un model capaç de preveure la possibilitat de supervivència d'un passatger a partir de les seves dades.
+
+En primer lloc, tornarem a dividir el conjunt d'entrenament en dos: un d'entrenament amb el 75% de les dades i un de test amb la resta. D'aquesta manera podrem comprobar la bondat del model.
+
+```{r}
+set.seed(123)
+
+xtr <- createDataPartition(y=titanic[titanic$ds=="train",]$Survived, p=0.75, list=FALSE)
+
+titanic_train <- titanic[titanic$ds=="train",][xtr,]
+titanic_test <- titanic[titanic$ds=="train",][-xtr,]
+```
+
+Entrenem el model.
+
+```{r}
+library(randomForest)
+
+frmla <- factor(Survived) ~ 
+  Pclass + Sex + AgeRange + HasCabin + Companions + Embarked
+
+rf <- randomForest(frmla, ntree=500, data=titanic_train, na.action=na.pass)
+rf
+```
+
+El model ja estima un error en l'*out-of-bag* (estimador pessimista de l'encert), d'un `r round(mean(unname(rf$err.rate)[,1]), digits=0)`%.
+
+Mostrem la matriu de confusió.
+
+```{r}
+rf$confusion
+```
+
+El model produeix molts més errors en la predicció de la supervivència que en la de la mort. Això sembla lògic doncs hi ha molts més passatgers que no ha sobreviscut.
+
+Una qualitat interessant d'utilitzar un model de tipus *Random Forest* és que l'algorisme ens retorna la importància dels atributs que hem utilitzat. Vegem-ho.
+
+```{r}
+varImpPlot(rf)
+```
+
+Es fàcil veure que el sexe i la classe són els atributs més importants considerats per l'algorisme. En canvi, el port d'embarcament, és el que menys i la variable que havíem construit `HasCabin` no ens està aportant els resultats que esperàvem.
+
+Realitzem la predicció sobre el conjunt de test que hem creat anteriorment per mesurar la qualitat de la mateixa.
+
+```{r}
+y_pred <- predict(rf, titanic_test)
+
+y_cm <- confusionMatrix(y_pred, titanic_test$Survived)
+```
+
+```{r, echo=FALSE}
+y_acc <- unname(y_cm$overall)
+rf_acc <- y_acc[1]
+```
+
+L'algorisme obté una precisió d'un `r round(rf_acc * 100, digits=1)` en el conjunt de test.
+
+```{r, echo=FALSE}
+titanic_prediction <- predict(rf, titanic_test_clean)
+
+titanic_submission <- data.frame(PassengerId=names(titanic_prediction), 
+                                 Survived=titanic_prediction)
+write.csv(titanic_submission, file="../data/titanic_submission.csv", 
+          row.names=FALSE)
+```
+
+# Resultats i conclusions.
+
+El model ha tingut un rendiment tirant a pobre en aquest exercici. Això és perque les variables que hem escollit per a entrenar-lo no l'hi han proporcionat la suficient capacitat de generalització.
+
+L'atribut `Sex` ens ha marcat l'anàlisi i ha conduït la cerca dels arbres de decisió utilitzats per l'algorisme *Random Forest*. Hauria estat bé realitzar, potser, una mica més d'anàlisi i preparació d'atributs per ajudar a l'algorisme a generalitzar.
+
+---
+
+# Referències
+
+* Kaggle. Titanic: Machine Learning from Disaster (https://www.kaggle.com/c/titanic).
+* Bruce, P.; Bruce, A. (2017). Practical Statistics for Data Scientists. O'Reilly.
+* UC Business Analytics R Programming Guide. University of Cincinnati (http://uc-r.github.io/).
